@@ -13,26 +13,44 @@ const REQUIRED = [
   "X-Conversation-Message-ID",
 ];
 
+const STATIC_REQUIRED = [
+  "User-Agent",
+  "X-Product",
+  "X-IDE-Type",
+  "X-IDE-Name",
+  "x-requested-with",
+  "x-codebuddy-request",
+];
+
 const CREDS = { accessToken: "TESTTOKEN", apiKey: null };
 
-function buildHeaders(id) {
+function buildHeaders(id, extraCreds = {}) {
   const executor = getExecutor(id);
-  return executor.buildHeaders(CREDS, true, PROVIDERS[id].baseUrl, "deepseek-v4.1-flash", {});
+  const baseUrl = PROVIDERS[id]?.baseUrl || (id === "cbai" ? PROVIDERS["codebuddy-intl"]?.baseUrl : PROVIDERS["codebuddy-cn"]?.baseUrl);
+  return executor.buildHeaders({ ...CREDS, ...extraCreds }, true, baseUrl, "deepseek-v4.1-flash", {});
 }
 
 describe("codebuddy channel headers", () => {
-  for (const id of ["codebuddy-intl", "codebuddy-cn"]) {
+  for (const id of ["codebuddy-intl", "codebuddy-cn", "cbai", "cbcn"]) {
     describe(id, () => {
-      it("registers the codebuddyHeaders hook", () => {
-        expect(PROVIDERS[id]?.auth?.hooks).toContain("codebuddyHeaders");
-      });
-
       it("sends the plugin request/conversation ids", () => {
         const headers = buildHeaders(id);
         for (const key of REQUIRED) {
           expect(typeof headers[key], `${id} must send ${key}`).toBe("string");
           expect(headers[key].length).toBeGreaterThan(0);
         }
+      });
+
+      it("sends all required static client identity headers", () => {
+        const headers = buildHeaders(id);
+        for (const key of STATIC_REQUIRED) {
+          expect(typeof headers[key], `${id} must send static header ${key}`).toBe("string");
+          expect(headers[key].length).toBeGreaterThan(0);
+        }
+        expect(headers["User-Agent"]).toContain("CodeBuddy");
+        expect(headers["x-codebuddy-request"]).toBe("1");
+        expect(headers["x-requested-with"]).toBe("XMLHttpRequest");
+        expect(headers["X-Product"]).toBe("SaaS");
       });
 
       it("reuses one request id across the request/conversation pair", () => {
@@ -51,6 +69,17 @@ describe("codebuddy channel headers", () => {
         expect(a["X-Request-ID"]).not.toBe(b["X-Request-ID"]);
         expect(a["X-Conversation-ID"]).not.toBe(b["X-Conversation-ID"]);
       });
+
+      it("preserves channel verification headers when runtimeTransport has no explicit hooks", () => {
+        const headers = buildHeaders(id, {
+          runtimeTransport: { format: "openai", baseUrl: "https://example.com" },
+        });
+        for (const key of REQUIRED) {
+          expect(typeof headers[key], `${id} must send ${key} under runtimeTransport`).toBe("string");
+        }
+        expect(headers["x-codebuddy-request"]).toBe("1");
+      });
     });
   }
 });
+

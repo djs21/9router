@@ -73,9 +73,12 @@ const executors = {
   "mimo-free": new MimoFreeExecutor(),
   mmf: new MimoFreeExecutor(), // Alias for mimo-free
   "codebuddy-cn": new CodeBuddyExecutor(),
+  cbcn: new CodeBuddyExecutor("cbcn"),
   "codebuddy-intl": new CodeBuddyIntlExecutor(),
+  cbai: new CodeBuddyIntlExecutor("cbai"),
   trae: new TraeExecutor(),
   zed: new ZedExecutor(),
+
   windsurf: new WindsurfExecutor(),
   "minimax-code": new MinimaxCodeExecutor("minimax-code"),
   "minimax-code-global": new MinimaxCodeExecutor("minimax-code-global"),

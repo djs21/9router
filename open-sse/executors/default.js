@@ -9,6 +9,7 @@ import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
 import { stripUnsupportedParams } from "../translator/concerns/paramSupport.js";
 import { extractClaudeSessionIdFromUserId } from "../utils/claudeCloaking.js";
+import { resolveProviderAlias } from "../services/model.js";
 
 // Auth header descriptors — derived from registry transport.auth, fallback to hardcoded defaults.
 const BEARER = { combined: true, header: "Authorization", scheme: "bearer" };
@@ -92,7 +93,8 @@ const REFRESH_GRANTS = Object.fromEntries(
 
 export class DefaultExecutor extends BaseExecutor {
   constructor(provider) {
-    super(provider, PROVIDERS[provider] || PROVIDERS.openai);
+    const canonical = resolveProviderAlias(provider);
+    super(provider, PROVIDERS[provider] || PROVIDERS[canonical] || PROVIDERS.openai);
   }
 
   transformRequest(model, body, stream, credentials) {
@@ -199,10 +201,15 @@ export class DefaultExecutor extends BaseExecutor {
 
   buildHeaders(credentials, stream = true, url, model, body = null) {
     const rt = credentials?.runtimeTransport;
-    const headers = { "Content-Type": "application/json", ...(rt ? rt.headers : this.config.headers) };
-    const desc = rt?.auth || AUTH_DESCRIPTORS[this.provider] || this.resolveAuthDescriptor();
+    const baseHeaders = this.config?.headers || {};
+    const headers = { "Content-Type": "application/json", ...baseHeaders, ...(rt?.headers || {}) };
+    const canonicalProvider = resolveProviderAlias(this.provider);
+    const desc = rt?.auth || AUTH_DESCRIPTORS[this.provider] || AUTH_DESCRIPTORS[canonicalProvider] || this.resolveAuthDescriptor();
+    const hooks = (desc?.hooks && desc.hooks.length > 0)
+      ? desc.hooks
+      : (AUTH_DESCRIPTORS[this.provider]?.hooks || AUTH_DESCRIPTORS[canonicalProvider]?.hooks || []);
     // Hooks run BEFORE auth so dynamic overlays can't clobber the token.
-    for (const hook of desc.hooks || []) HEADER_HOOKS[hook]?.(headers, credentials);
+    for (const hook of hooks) HEADER_HOOKS[hook]?.(headers, credentials);
     applyAuth(headers, desc, credentials);
 
     // anthropic-compatible-* nodes serving a real Claude model sit in front of

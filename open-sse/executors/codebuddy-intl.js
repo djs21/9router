@@ -9,8 +9,8 @@ import { DefaultExecutor } from "./default.js";
  * mirror reasoning_summary exactly like CodeBuddyExecutor.
  */
 export class CodeBuddyIntlExecutor extends DefaultExecutor {
-  constructor() {
-    super("codebuddy-intl");
+  constructor(provider = "codebuddy-intl") {
+    super(provider);
   }
 
   transformRequest(model, body, stream, credentials) {
