@@ -1,4 +1,10 @@
-import { ANTIGRAVITY_IDE_BASE_URL, ANTIGRAVITY_IDE_USER_AGENT, ANTIGRAVITY_OAUTH_CLIENT } from "../shared.js";
+import {
+  ANTIGRAVITY_IDE_BASE_URL,
+  ANTIGRAVITY_PROD_BASE_URL,
+  ANTIGRAVITY_CANARY_BASE_URL,
+  ANTIGRAVITY_IDE_USER_AGENT,
+  ANTIGRAVITY_OAUTH_CLIENT,
+} from "../shared.js";
 
 export default {
   id: "antigravity",
@@ -19,7 +25,10 @@ export default {
   category: "oauth",
   serviceKinds: ["llm", "image", "webSearch"],
   transport: {
-    baseUrls: [ANTIGRAVITY_IDE_BASE_URL],
+    baseUrls: [
+      ANTIGRAVITY_IDE_BASE_URL,
+      ...(ANTIGRAVITY_IDE_BASE_URL !== ANTIGRAVITY_CANARY_BASE_URL ? [ANTIGRAVITY_CANARY_BASE_URL] : []),
+    ],
     format: "antigravity",
     headers: {
       "User-Agent": ANTIGRAVITY_IDE_USER_AGENT,
@@ -86,10 +95,10 @@ export default {
       "https://www.googleapis.com/auth/cclog",
       "https://www.googleapis.com/auth/experimentsandconfigs",
     ],
-    apiEndpoint: "https://daily-cloudcode-pa.googleapis.com",
+    apiEndpoint: ANTIGRAVITY_IDE_BASE_URL,
     apiVersion: "v1internal",
-    loadCodeAssistEndpoint: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
-    onboardUserEndpoint: "https://cloudcode-pa.googleapis.com/v1internal:onboardUser",
+    loadCodeAssistEndpoint: `${ANTIGRAVITY_PROD_BASE_URL}/v1internal:loadCodeAssist`,
+    onboardUserEndpoint: `${ANTIGRAVITY_PROD_BASE_URL}/v1internal:onboardUser`,
     loadCodeAssistUserAgent: ANTIGRAVITY_IDE_USER_AGENT,
     refreshLeadMs: 300000,
   },

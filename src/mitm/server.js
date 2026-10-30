@@ -20,10 +20,16 @@ const ENABLE_FILE_LOG = IS_DEV;
 clearDumpDir();
 const INTERNAL_REQUEST_HEADER = { name: "x-request-source", value: "local" };
 
-// Host rewrite for upstream forward: PROD cloudcode-pa is rate-limited (429),
-// daily-cloudcode-pa (dev endpoint) accepts same body+token. Same trick as open-sse.
+// Host rewrite for upstream forward: daily-cloudcode-pa (dev canary) is only used when
+// explicitly requested via ANTIGRAVITY_ENV=canary/daily or MITM_REWRITE_ANTIGRAVITY=true.
+// In production mode, requests to cloudcode-pa.googleapis.com remain directed to the production host.
+const shouldRewriteAntigravity =
+  process.env.MITM_REWRITE_ANTIGRAVITY === "true" ||
+  process.env.ANTIGRAVITY_ENV === "canary" ||
+  process.env.ANTIGRAVITY_ENV === "daily";
+
 const HOST_REWRITE = {
-  "cloudcode-pa.googleapis.com": "daily-cloudcode-pa.googleapis.com",
+  ...(shouldRewriteAntigravity ? { "cloudcode-pa.googleapis.com": "daily-cloudcode-pa.googleapis.com" } : {}),
 };
 
 const handlers = {

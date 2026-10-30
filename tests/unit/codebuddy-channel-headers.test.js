@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { PROVIDERS } from "open-sse/config/providers.js";
 import { getExecutor } from "open-sse/executors/index.js";
+import { DefaultExecutor } from "open-sse/executors/default.js";
 
 // The CodeBuddy gateways (CN + intl) run a per-request channel check. Without
 // the official plugin's request/conversation identifiers upstream rejects the
@@ -81,5 +82,38 @@ describe("codebuddy channel headers", () => {
       });
     });
   }
+
+  describe("generic openai-compatible custom provider guardrails (sbeads-20i)", () => {
+    it.each([
+      "https://www.codebuddy.ai/v2",
+      "https://copilot.tencent.com/v2/chat/completions",
+    ])("injects channel verification headers when custom baseUrl is %s", (baseUrl) => {
+      const executor = new DefaultExecutor("openai-compatible-chat-custom");
+      const headers = executor.buildHeaders(
+        { apiKey: "TESTTOKEN", providerSpecificData: { baseUrl } },
+        true,
+        baseUrl,
+        "deepseek-v4.1-flash"
+      );
+      for (const key of REQUIRED) {
+        expect(typeof headers[key], `must send ${key} for custom provider pointing to ${baseUrl}`).toBe("string");
+        expect(headers[key].length).toBeGreaterThan(0);
+      }
+      expect(headers["X-Request-ID"]).toBe(headers["X-Conversation-Request-ID"]);
+    });
+
+    it("does not inject channel headers for ordinary openai-compatible endpoints", () => {
+      const executor = new DefaultExecutor("openai-compatible-chat-custom");
+      const headers = executor.buildHeaders(
+        { apiKey: "TESTTOKEN", providerSpecificData: { baseUrl: "https://api.openai.com/v1" } },
+        true,
+        "https://api.openai.com/v1/chat/completions",
+        "gpt-4o"
+      );
+      for (const key of REQUIRED) {
+        expect(headers[key]).toBeUndefined();
+      }
+    });
+  });
 });
 

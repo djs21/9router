@@ -67,8 +67,11 @@ describe("antigravity computeRetryDelay hook (D3)", () => {
     expect(out.request.tools[0].functionDeclarations.map(fn => fn.name)).toEqual(["read_file"]);
   });
 
-  it("registry uses the daily IDE cloudcode host and user agent", () => {
-    expect(antigravity.transport.baseUrls).toEqual(["https://daily-cloudcode-pa.googleapis.com"]);
+  it("registry uses the production primary host with canary failover and user agent", () => {
+    expect(antigravity.transport.baseUrls).toEqual([
+      "https://cloudcode-pa.googleapis.com",
+      "https://daily-cloudcode-pa.googleapis.com",
+    ]);
     expect(antigravity.transport.headers["User-Agent"]).toBe("antigravity/hub/2.24.0 darwin/arm64");
   });
 
