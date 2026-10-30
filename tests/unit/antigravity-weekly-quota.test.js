@@ -271,7 +271,7 @@ describe("fetchAntigravityWeeklyQuota", () => {
     await fetchAntigravityWeeklyQuota("token", "project-1");
 
     expect(proxyAwareFetch).toHaveBeenCalledWith(
-      "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+      "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({

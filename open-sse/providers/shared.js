@@ -93,7 +93,19 @@ export const ANTHROPIC_COMPAT_BASE = "https://api.anthropic.com/v1";
 // Keep this static even when 9router runs on Linux: the provider profile is
 // intentionally matching the Hub client, not the server host.
 export const ANTIGRAVITY_IDE_VERSION = "2.24.0";
-export const ANTIGRAVITY_IDE_BASE_URL = "https://daily-cloudcode-pa.googleapis.com";
+export const ANTIGRAVITY_PROD_BASE_URL = "https://cloudcode-pa.googleapis.com";
+export const ANTIGRAVITY_CANARY_BASE_URL = "https://daily-cloudcode-pa.googleapis.com";
+export const ANTIGRAVITY_DAILY_BASE_URL = ANTIGRAVITY_CANARY_BASE_URL;
+
+export function resolveAntigravityBaseUrl() {
+  if (process.env.ANTIGRAVITY_BASE_URL) return process.env.ANTIGRAVITY_BASE_URL;
+  if (process.env.ANTIGRAVITY_ENV === "canary" || process.env.ANTIGRAVITY_ENV === "daily") {
+    return ANTIGRAVITY_CANARY_BASE_URL;
+  }
+  return ANTIGRAVITY_PROD_BASE_URL;
+}
+
+export const ANTIGRAVITY_IDE_BASE_URL = resolveAntigravityBaseUrl();
 export const ANTIGRAVITY_IDE_USER_AGENT = `antigravity/hub/${ANTIGRAVITY_IDE_VERSION} darwin/arm64`;
 
 // Antigravity OAuth client credentials (public CLI client — duplicated in usage.js + src/lib/oauth)
