@@ -86,6 +86,7 @@ graphify-out/*
 .codegraph/
 .PR/
 .next-analyze/*
+.sbeads/
 
 # Kiro local workspace state
 .kiro/
