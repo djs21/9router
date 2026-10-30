@@ -210,7 +210,19 @@ export class DefaultExecutor extends BaseExecutor {
       : (AUTH_DESCRIPTORS[this.provider]?.hooks || AUTH_DESCRIPTORS[canonicalProvider]?.hooks || []);
     // Hooks run BEFORE auth so dynamic overlays can't clobber the token.
     for (const hook of hooks) HEADER_HOOKS[hook]?.(headers, credentials);
+
+    // Guardrail against raw CodeBuddy endpoint in custom / generic providers (sbeads-20i):
+    // Detect when users add a raw CodeBuddy or Tencent copilot URL under generic OpenAI custom providers,
+    // injecting channel verification headers to prevent silent 11128 failures.
+    const customBaseUrl = credentials?.providerSpecificData?.baseUrl || "";
+    if (
+      !hooks.includes("codebuddyHeaders") &&
+      (/codebuddy\.ai|copilot\.tencent\.com/i.test(customBaseUrl) || /codebuddy\.ai|copilot\.tencent\.com/i.test(url || ""))
+    ) {
+      HEADER_HOOKS.codebuddyHeaders(headers);
+    }
     applyAuth(headers, desc, credentials);
+
 
     // anthropic-compatible-* nodes serving a real Claude model sit in front of
     // Anthropic itself (a rotating multi-account proxy, a corporate gateway),
