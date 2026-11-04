@@ -104,4 +104,17 @@ describe("BaseExecutor.execute — computeRetryDelay hook veto", () => {
     expect(out.response.status).toBe(429);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("hook returning false bypasses fallback baseUrls cycling", async () => {
+    const ex = makeExec({
+      baseUrls: ["https://a/api", "https://b/api"],
+      retry: { 429: { attempts: 3, delayMs: 0 } },
+    });
+    ex.computeRetryDelay = vi.fn().mockResolvedValue(false);
+    fetchMock.mockResolvedValueOnce(res(429));
+    const out = await ex.execute({ model: "m", body: {}, stream: false, credentials: creds });
+    expect(out.response.status).toBe(429);
+    expect(out.url).toBe("https://a/api");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

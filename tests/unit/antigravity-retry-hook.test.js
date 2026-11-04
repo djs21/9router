@@ -28,6 +28,52 @@ describe("antigravity computeRetryDelay hook (D3)", () => {
     expect(await ag.computeRetryDelay(r, 1)).toBe(3000);
   });
 
+  it("vetoes (false) when quota reset delay from error body exceeds cap", async () => {
+    const r = res(429, {}, { error: { message: "quota will reset after 15m" } });
+    expect(await ag.computeRetryDelay(r, 1)).toBe(false);
+  });
+
+  it("vetoes (false) on 429 RESOURCE_EXHAUSTED", async () => {
+    const r = res(429, {}, { error: { message: "RESOURCE_EXHAUSTED", status: "RESOURCE_EXHAUSTED" } });
+    expect(await ag.computeRetryDelay(r, 1)).toBe(false);
+  });
+
+  it("vetoes (false) on 429 quota exhaustion in error message", async () => {
+    const r = res(429, {}, { error: { message: "Quota exceeded for quota metric" } });
+    expect(await ag.computeRetryDelay(r, 1)).toBe(false);
+  });
+
+  it("parses retryDelay from details metadata when within cap", async () => {
+    const r = res(429, {}, {
+      error: {
+        message: "rate limit",
+        details: [{ retryDelay: "4s" }],
+      },
+    });
+    expect(await ag.computeRetryDelay(r, 1)).toBe(4000);
+  });
+
+  it("vetoes (false) when details retryDelay exceeds cap", async () => {
+    const r = res(429, {}, {
+      error: {
+        message: "rate limit",
+        details: [{ retryDelay: "30s" }],
+      },
+    });
+    expect(await ag.computeRetryDelay(r, 1)).toBe(false);
+  });
+
+  it("vetoes (false) when details quotaResetTimeStamp exceeds cap", async () => {
+    const future = new Date(Date.now() + 60000).toISOString();
+    const r = res(429, {}, {
+      error: {
+        message: "rate limit",
+        details: [{ metadata: { quotaResetTimeStamp: future } }],
+      },
+    });
+    expect(await ag.computeRetryDelay(r, 1)).toBe(false);
+  });
+
   it("exponential backoff for 429 when no retry info", async () => {
     expect(await ag.computeRetryDelay(res(429), 1)).toBe(Math.min(1000 * 2 ** 1, MAX));
     expect(await ag.computeRetryDelay(res(429), 3)).toBe(Math.min(1000 * 2 ** 3, MAX));

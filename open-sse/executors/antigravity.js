@@ -439,6 +439,26 @@ export class AntigravityExecutor extends BaseExecutor {
     return totalMs > 0 ? totalMs : null;
   }
 
+  // Extract reset delay (in ms) from error details metadata (quotaResetTimeStamp / retryDelay)
+  parseQuotaResetDelayFromDetails(details) {
+    if (!Array.isArray(details)) return null;
+    for (const d of details) {
+      if (d?.metadata?.quotaResetTimeStamp) {
+        const ms = new Date(d.metadata.quotaResetTimeStamp).getTime();
+        if (!isNaN(ms) && ms > Date.now()) {
+          return ms - Date.now();
+        }
+      }
+      if (typeof d?.retryDelay === "string") {
+        const sec = parseFloat(d.retryDelay);
+        if (!isNaN(sec) && sec > 0) {
+          return Math.round(sec * 1000);
+        }
+      }
+    }
+    return null;
+  }
+
   extractErrorMessage(errorJson, bodyText = "") {
     return [
       errorJson?.error?.message,
@@ -474,7 +494,19 @@ export class AntigravityExecutor extends BaseExecutor {
     if (!retryMs) {
       retryMs = this.parseRetryFromErrorMessage(errorMessage);
     }
+    if (!retryMs && errorJson?.error?.details) {
+      retryMs = this.parseQuotaResetDelayFromDetails(errorJson.error.details);
+    }
     if (retryMs) return retryMs <= MAX_RETRY_AFTER_MS ? retryMs : false;
+
+    // Fail-fast on quota exhaustion (RESOURCE_EXHAUSTED): do not retry with backoff
+    if (response.status === HTTP_STATUS.RATE_LIMITED) {
+      const isQuotaExhausted = /RESOURCE_EXHAUSTED/i.test(errorMessage) ||
+        /quota/i.test(errorMessage) ||
+        Boolean(errorJson?.error?.status === "RESOURCE_EXHAUSTED") ||
+        (Array.isArray(errorJson?.error?.details) && errorJson.error.details.some(d => d?.reason === "RATE_LIMIT_EXCEEDED" || d?.metadata?.quotaResetTimeStamp));
+      if (isQuotaExhausted) return false;
+    }
 
     if (!this.isTransientAntigravityError(response.status, errorMessage)) return false;
 

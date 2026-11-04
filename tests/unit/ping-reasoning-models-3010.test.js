@@ -74,4 +74,34 @@ describe("pingModelByKind reasoning models (#3010)", () => {
     const result = await pingModelByKind("openai/gpt-4o", "llm", "http://127.0.0.1:20127");
     expect(result.ok).toBe(true);
   });
+
+  it("handles AbortError/timeout gracefully with status 504", async () => {
+    const abortErr = new Error("The operation was aborted");
+    abortErr.name = "AbortError";
+    fetchMock.mockRejectedValue(abortErr);
+
+    const result = await pingModelByKind("openai/gpt-4o", "llm", "http://127.0.0.1:20127");
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe(504);
+    expect(result.error).toMatch(/timed out after 15s/i);
+    expect(typeof result.latencyMs).toBe("number");
+  });
+
+  it("surfaces upstream 429 quota exhaustion without timing out", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 429,
+      text: async () => JSON.stringify({
+        error: {
+          message: "RESOURCE_EXHAUSTED: Quota exceeded for quota metric",
+          code: 429,
+        },
+      }),
+    });
+
+    const result = await pingModelByKind("antigravity/gemini-3.8-flash-high", "llm", "http://127.0.0.1:20127");
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe(429);
+    expect(result.error).toMatch(/429.*RESOURCE_EXHAUSTED/);
+  });
 });

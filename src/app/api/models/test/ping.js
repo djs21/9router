@@ -55,17 +55,52 @@ async function getInternalHeaders() {
   return headers;
 }
 
+function isAbortOrTimeout(err) {
+  return err?.name === "AbortError" || err?.name === "TimeoutError" || /aborted|timeout|timed out/i.test(err?.message || "");
+}
+
+async function executePingFetch(url, init, start) {
+  try {
+    const res = await fetch(url, init);
+    return { ok: true, res };
+  } catch (err) {
+    const latencyMs = Date.now() - start;
+    if (isAbortOrTimeout(err)) {
+      return {
+        ok: false,
+        errorResult: {
+          ok: false,
+          latencyMs,
+          status: 504,
+          error: "Request timed out after 15s",
+        },
+      };
+    }
+    return {
+      ok: false,
+      errorResult: {
+        ok: false,
+        latencyMs,
+        status: 502,
+        error: err?.message || String(err),
+      },
+    };
+  }
+}
+
 export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:${process.env.PORT || UPDATER_CONFIG.appPort}`) {
   const headers = await getInternalHeaders();
   const start = Date.now();
 
   if (kind === "embedding") {
-    const res = await fetch(`${baseUrl}/api/v1/embeddings`, {
+    const fetchOutcome = await executePingFetch(`${baseUrl}/api/v1/embeddings`, {
       method: "POST",
       headers,
       body: JSON.stringify({ model, input: "test" }),
       signal: AbortSignal.timeout(15000),
-    });
+    }, start);
+    if (!fetchOutcome.ok) return fetchOutcome.errorResult;
+    const res = fetchOutcome.res;
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
     let parsed = null;
@@ -83,12 +118,14 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
   }
 
   if (kind === "image") {
-    const res = await fetch(`${baseUrl}/api/v1/images/generations`, {
+    const fetchOutcome = await executePingFetch(`${baseUrl}/api/v1/images/generations`, {
       method: "POST",
       headers,
       body: JSON.stringify({ model, prompt: "test" }),
       signal: AbortSignal.timeout(15000),
-    });
+    }, start);
+    if (!fetchOutcome.ok) return fetchOutcome.errorResult;
+    const res = fetchOutcome.res;
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
     let parsed = null;
@@ -112,12 +149,14 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
     form.append("file", sampleAudio, "test.wav");
     form.append("model", model);
 
-    const res = await fetch(`${baseUrl}/api/v1/audio/transcriptions`, {
+    const fetchOutcome = await executePingFetch(`${baseUrl}/api/v1/audio/transcriptions`, {
       method: "POST",
       headers: Object.fromEntries(Object.entries(headers).filter(([key]) => key.toLowerCase() !== "content-type")),
       body: form,
       signal: AbortSignal.timeout(15000),
-    });
+    }, start);
+    if (!fetchOutcome.ok) return fetchOutcome.errorResult;
+    const res = fetchOutcome.res;
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
     let parsed = null;
@@ -136,7 +175,7 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
   }
 
   if (kind === "systemone") {
-    const res = await fetch(`${baseUrl}/api/v1/systemone`, {
+    const fetchOutcome = await executePingFetch(`${baseUrl}/api/v1/systemone`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -147,7 +186,9 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
         },
       }),
       signal: AbortSignal.timeout(15000),
-    });
+    }, start);
+    if (!fetchOutcome.ok) return fetchOutcome.errorResult;
+    const res = fetchOutcome.res;
     const latencyMs = Date.now() - start;
     const rawText = await res.text().catch(() => "");
     let parsed = null;
@@ -165,7 +206,7 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
     return { ok: true, latencyMs, error: null, status: res.status };
   }
 
-  const res = await fetch(`${baseUrl}/api/v1/chat/completions`, {
+  const fetchOutcome = await executePingFetch(`${baseUrl}/api/v1/chat/completions`, {
     method: "POST",
     headers,
     body: JSON.stringify({
@@ -179,7 +220,9 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
       messages: [{ role: "user", content: "hi" }],
     }),
     signal: AbortSignal.timeout(15000),
-  });
+  }, start);
+  if (!fetchOutcome.ok) return fetchOutcome.errorResult;
+  const res = fetchOutcome.res;
   const latencyMs = Date.now() - start;
 
   const rawText = await res.text().catch(() => "");

@@ -107,6 +107,7 @@ export class BaseExecutor {
     const retryConfig = { ...DEFAULT_RETRY_CONFIG, ...this.config.retry };
 
     // Schedule retry via retryConfig[statusKey]. Returns true when caller should `urlIndex--; continue`
+    let retryVetoed = false;
     // response (optional) lets a subclass hook compute a dynamic delay (e.g. antigravity Retry-After).
     const tryRetry = async (urlIndex, statusKey, reason, response = null) => {
       const { attempts, delayMs } = resolveRetryEntry(retryConfig[statusKey]);
@@ -115,7 +116,10 @@ export class BaseExecutor {
       let waitMs = delayMs;
       if (response && this.computeRetryDelay) {
         const dynamic = await this.computeRetryDelay(response, retryAttemptsByUrl[urlIndex] + 1, delayMs);
-        if (dynamic === false) return false; // hook vetoes retry (e.g. Retry-After too long)
+        if (dynamic === false) {
+          retryVetoed = true; // hook explicitly vetoes retry (e.g. Retry-After too long or quota exhausted)
+          return false;
+        }
         if (dynamic != null) waitMs = dynamic;
       }
       retryAttemptsByUrl[urlIndex]++;
@@ -159,7 +163,7 @@ export class BaseExecutor {
 
         if (await tryRetry(urlIndex, response.status, `status ${response.status}`, response)) { urlIndex--; continue; }
 
-        if (this.shouldRetry(response.status, urlIndex)) {
+        if (!retryVetoed && this.shouldRetry(response.status, urlIndex)) {
           log?.debug?.("RETRY", `${response.status} on ${url}, trying fallback ${urlIndex + 1}`);
           lastStatus = response.status;
           continue;
